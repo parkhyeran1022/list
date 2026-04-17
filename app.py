@@ -17,7 +17,32 @@ try:
 except Exception as e:
     st.error("⚠️ 구글 시트 연결 설정(Secrets)을 확인해주세요.")
     conn = None
+def get_unified_df():
+    # 1. 자사/외부 데이터 규격화
+    df_yt = pd.DataFrame(yt_data)
+    df_yt['상세 정보'] = df_yt['아이디어'] # 아이디어 위주
+    
+    # 2. 벤더사 데이터 규격화
+    df_vn = pd.DataFrame(vendor_data)
+    df_vn['구분'] = '벤더사'
+    df_vn = df_vn.rename(columns={'분류': '세부유형'})
+    df_vn['상세 정보'] = "인스타그램 공구 타겟"
+    
+    # 3. 소속사 데이터 규격화
+    df_ag = pd.DataFrame(agency_data)
+    df_ag = df_ag.rename(columns={'소속': '구분', '플랫폼': '세부유형'})
+    # 구독자와 단가 정보를 '상세 정보' 하나로 합치기 (이게 핵심!)
+    df_ag['상세 정보'] = df_ag.apply(lambda x: f"구독자: {x['구독자']} / 단가: {x['단가']} ({x['비고']})", axis=1)
 
+    # 4. 전체 합치기 (필요한 열만 딱 뽑아서)
+    cols = ['구분', '세부유형', '이름', 'URL', '추천제품', '상세 정보']
+    df_combined = pd.concat([df_yt[cols], df_vn[cols], df_ag[cols]], ignore_index=True)
+    
+    if '컨펌상태' not in st.session_state:
+        df_combined['컨펌상태'] = '대기'
+        st.session_state.confirmation_db = df_combined
+    
+    return st.session_state.confirmation_db
 # ==========================================
 # 2. 데이터 세팅 (누락 0% 전체 리스트)
 # ==========================================
@@ -180,17 +205,22 @@ def draw_gallery(df_subset):
 tabs = st.tabs(["📊 전체 컨펌 리스트", "🏢 자사", "🌍 외부", "🤝 벤더사", "🏢 소속사"])
 
 with tabs[0]:
-    st.header("📋 컨펌 관리 (전체 데이터)")
-    st.markdown("""
-    컨펌상태 설정 후 구글 시트에 컨펌 결과 저장하기를 클릭해주세요.
-    """)
+    st.header("📋 통합 컨펌 대시보드")
+    st.markdown("##### 컨펌 상태 저장 후 구글시트에 컨펌 결과 저장하기를 눌러주세요")
+    
+    unified_df = get_unified_df()
+    
     edited_df = st.data_editor(
-        df_all,
+        unified_df,
         column_config={
-            "URL": st.column_config.LinkColumn("링크"),
-            "컨펌상태": st.column_config.SelectboxColumn("컨펌상태", options=["대기", "승인 ✅", "반려 ❌", "보류 ⏳"])
+            "구분": st.column_config.TextColumn("소속", width="small"),
+            "세부유형": st.column_config.TextColumn("유형/규모", width="small"),
+            "URL": st.column_config.LinkColumn("링크", width="medium"),
+            "상세 정보": st.column_config.TextColumn("핵심 전략 및 비용", width="large"),
+            "컨펌상태": st.column_config.SelectboxColumn("결정", options=["대기", "승인 ✅", "반려 ❌"], width="small")
         },
-        use_container_width=True, hide_index=True
+        use_container_width=True,
+        hide_index=True
     )
     if st.button("💾 구글 시트에 컨펌 결과 저장하기"):
         if conn:
