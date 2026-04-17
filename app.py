@@ -19,28 +19,45 @@ except Exception as e:
     conn = None
 def get_unified_df():
     # 1. 자사/외부 데이터 규격화
-    df_yt = pd.DataFrame(yt_data)
-    df_yt['상세 정보'] = df_yt['아이디어'] # 아이디어 위주
+    df_yt = pd.DataFrame(yt_data).copy()
+    # 만약 데이터에 추천제품이 없다면 빈 칸 생성
+    if '추천제품' not in df_yt.columns: df_yt['추천제품'] = '-'
+    df_yt['상세 정보'] = df_yt['아이디어'].fillna('-') # 아이디어 위주
     
     # 2. 벤더사 데이터 규격화
-    df_vn = pd.DataFrame(vendor_data)
+    df_vn = pd.DataFrame(vendor_data).copy()
     df_vn['구분'] = '벤더사'
     df_vn = df_vn.rename(columns={'분류': '세부유형'})
+    if '추천제품' not in df_vn.columns: df_vn['추천제품'] = '-'
     df_vn['상세 정보'] = "인스타그램 공구 타겟"
     
     # 3. 소속사 데이터 규격화
-    df_ag = pd.DataFrame(agency_data)
+    df_ag = pd.DataFrame(agency_data).copy()
     df_ag = df_ag.rename(columns={'소속': '구분', '플랫폼': '세부유형'})
-    # 구독자와 단가 정보를 '상세 정보' 하나로 합치기 (이게 핵심!)
-    df_ag['상세 정보'] = df_ag.apply(lambda x: f"구독자: {x['구독자']} / 단가: {x['단가']} ({x['비고']})", axis=1)
+    # ⭐ 소속사 데이터에는 '추천제품'이 없으므로 빈 칸을 만들어줍니다. (KeyError 방지)
+    df_ag['추천제품'] = '-'
+    # 구독자와 단가 정보를 '상세 정보' 하나로 합치기
+    df_ag['상세 정보'] = df_ag.apply(lambda x: f"구독자: {x.get('구독자','-')} / 단가: {x.get('단가','-')} ({x.get('비고','-')})", axis=1)
 
     # 4. 전체 합치기 (필요한 열만 딱 뽑아서)
     cols = ['구분', '세부유형', '이름', 'URL', '추천제품', '상세 정보']
-    df_combined = pd.concat([df_yt[cols], df_vn[cols], df_ag[cols]], ignore_index=True)
     
-    if '컨펌상태' not in st.session_state:
+    # 각 데이터프레임에서 cols에 해당하는 열만 안전하게 추출
+    df_yt_final = df_yt[cols]
+    df_vn_final = df_vn[cols]
+    df_ag_final = df_ag[cols]
+    
+    df_combined = pd.concat([df_yt_final, df_vn_final, df_ag_final], ignore_index=True)
+    
+    # 컨펌 상태 초기화 (세션 상태 활용)
+    if 'confirmation_db' not in st.session_state:
         df_combined['컨펌상태'] = '대기'
         st.session_state.confirmation_db = df_combined
+    else:
+        # 데이터 리스트가 바뀌었을 경우를 대비해 행 개수가 다르면 업데이트
+        if len(st.session_state.confirmation_db) != len(df_combined):
+            df_combined['컨펌상태'] = '대기'
+            st.session_state.confirmation_db = df_combined
     
     return st.session_state.confirmation_db
 # ==========================================
