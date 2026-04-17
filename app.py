@@ -9,7 +9,7 @@ import os
 # 1. 페이지 설정 및 보안 로드
 # ==========================================
 st.set_page_config(page_title="Glowuprizz PB Dashboard", page_icon="🚀", layout="wide")
-st.title("인플루언서 컨펌 시스템")
+st.title("🚀 인플루언서 컨펌 시스템")
 
 yt_key = st.secrets.get("YOUTUBE_KEY", "")
 try:
@@ -17,54 +17,54 @@ try:
 except Exception as e:
     st.error("⚠️ 구글 시트 연결 설정(Secrets)을 확인해주세요.")
     conn = None
+
+# ==========================================
+# 2. 데이터 통합 규격화 함수 (KeyError 해결 버전)
+# ==========================================
 def get_unified_df():
     # 1. 자사/외부 데이터 규격화
     df_yt = pd.DataFrame(yt_data).copy()
-    # 만약 데이터에 추천제품이 없다면 빈 칸 생성
     if '추천제품' not in df_yt.columns: df_yt['추천제품'] = '-'
-    df_yt['상세 정보'] = df_yt['아이디어'].fillna('-') # 아이디어 위주
+    if 'URL' not in df_yt.columns: df_yt['URL'] = '-'
+    df_yt['상세 정보'] = df_yt['아이디어'].fillna('-')
     
     # 2. 벤더사 데이터 규격화
     df_vn = pd.DataFrame(vendor_data).copy()
     df_vn['구분'] = '벤더사'
     df_vn = df_vn.rename(columns={'분류': '세부유형'})
     if '추천제품' not in df_vn.columns: df_vn['추천제품'] = '-'
+    if 'URL' not in df_vn.columns: df_vn['URL'] = '-'
     df_vn['상세 정보'] = "인스타그램 공구 타겟"
     
     # 3. 소속사 데이터 규격화
     df_ag = pd.DataFrame(agency_data).copy()
     df_ag = df_ag.rename(columns={'소속': '구분', '플랫폼': '세부유형'})
-    # ⭐ 소속사 데이터에는 '추천제품'이 없으므로 빈 칸을 만들어줍니다. (KeyError 방지)
+    # ⭐ 부족한 열 강제 생성 (KeyError 방지)
     df_ag['추천제품'] = '-'
-    # 구독자와 단가 정보를 '상세 정보' 하나로 합치기
+    df_ag['URL'] = '-' 
+    # 상세 정보 생성 (구독자, 단가, 비고 통합)
     df_ag['상세 정보'] = df_ag.apply(lambda x: f"구독자: {x.get('구독자','-')} / 단가: {x.get('단가','-')} ({x.get('비고','-')})", axis=1)
 
-    # 4. 전체 합치기 (필요한 열만 딱 뽑아서)
+    # 4. 전체 합치기 (칼각 컬럼)
     cols = ['구분', '세부유형', '이름', 'URL', '추천제품', '상세 정보']
     
-    # 각 데이터프레임에서 cols에 해당하는 열만 안전하게 추출
-    df_yt_final = df_yt[cols]
-    df_vn_final = df_vn[cols]
-    df_ag_final = df_ag[cols]
+    df_combined = pd.concat([df_yt[cols], df_vn[cols], df_ag[cols]], ignore_index=True)
     
-    df_combined = pd.concat([df_yt_final, df_vn_final, df_ag_final], ignore_index=True)
-    
-    # 컨펌 상태 초기화 (세션 상태 활용)
     if 'confirmation_db' not in st.session_state:
         df_combined['컨펌상태'] = '대기'
         st.session_state.confirmation_db = df_combined
-    else:
-        # 데이터 리스트가 바뀌었을 경우를 대비해 행 개수가 다르면 업데이트
-        if len(st.session_state.confirmation_db) != len(df_combined):
-            df_combined['컨펌상태'] = '대기'
-            st.session_state.confirmation_db = df_combined
+    elif len(st.session_state.confirmation_db) != len(df_combined):
+        # 명단이 추가되거나 삭제되었을 때만 갱신
+        df_combined['컨펌상태'] = '대기'
+        st.session_state.confirmation_db = df_combined
     
     return st.session_state.confirmation_db
+
 # ==========================================
-# 2. 데이터 세팅 (누락 0% 전체 리스트)
+# 3. 전체 데이터 리스트 (누락 0%)
 # ==========================================
 yt_data = [
-    # 🏢 자사 - 전속 (10명)
+    # 자사 전속/파트너십/프로젝트 (지서님이 주신 18명 전체)
     {"구분": "자사", "세부유형": "전속", "이름": "심장에박현서", "URL": "https://youtube.com/channel/UCo4m81FJ-dT8MqijBlhbN2A", "추천제품": "-", "아이디어": "-"},
     {"구분": "자사", "세부유형": "전속", "이름": "생각없이사는연", "URL": "https://youtube.com/channel/UCyVEhwFJ1HF66JqjxMkc-Uw", "추천제품": "-", "아이디어": "-"},
     {"구분": "자사", "세부유형": "전속", "이름": "예보링", "URL": "https://youtube.com/channel/UCby6TnEm4xha2NIncRxC2EQ", "추천제품": "-", "아이디어": "-"},
@@ -75,17 +75,15 @@ yt_data = [
     {"구분": "자사", "세부유형": "전속", "이름": "핏블리 FITVELY", "URL": "https://youtube.com/channel/UC3hRpIQ4x5niJDwjajQSVPg", "추천제품": "-", "아이디어": "-"},
     {"구분": "자사", "세부유형": "전속", "이름": "재넌", "URL": "https://youtube.com/channel/UCem8l1w4OWhkqpoOg1SB4_w", "추천제품": "쏙쉐이크 어퍼볼캡", "아이디어": "잦은 먹방 속 쏙쉐이크 식단관리 노출"},
     {"구분": "자사", "세부유형": "전속", "이름": "살빼조", "URL": "https://www.youtube.com/@dietjo311", "추천제품": "쏙쉐이크", "아이디어": "아침 루틴 식사 대용 노출"},
-    # 🏢 자사 - 파트너십 (5명)
     {"구분": "자사", "세부유형": "파트너십", "이름": "매드브로 MadBros", "URL": "https://youtube.com/channel/UCiTcv_AxQQSx77yGikHHDZw", "추천제품": "볼캡 쏙쉐이크", "아이디어": "쓰줍맨 활동 시 착용"},
     {"구분": "자사", "세부유형": "파트너십", "이름": "독고독채널", "URL": "https://youtube.com/channel/UCEUSANZNPXY1JsBoqhQIgxQ", "추천제품": "쏙쉐이크", "아이디어": ""},
     {"구분": "자사", "세부유형": "파트너십", "이름": "김승배", "URL": "https://youtube.com/channel/UCPDiMzJdYb0Q-LxoP7W1j7g", "추천제품": "쏙쉐이크", "아이디어": ""},
     {"구분": "자사", "세부유형": "파트너십", "이름": "kiu기우쌤", "URL": "https://youtube.com/channel/UCIZ5rCTYJ0s16FgT7OetVEQ", "추천제품": "솔브 모델링팩", "아이디어": ""},
     {"구분": "자사", "세부유형": "파트너십", "이름": "비타민신지니 VitaminJINY", "URL": "https://youtube.com/channel/UC9trbyGOOjJmMea3w6c-e2A", "추천제품": "솔브 괄사크림", "아이디어": ""},
-    # 🏢 자사 - 프로젝트 협업 (3명)
     {"구분": "자사", "세부유형": "프로젝트 협업", "이름": "잡식맨 JOBXICMAN", "URL": "https://youtube.com/channel/UCVILvX9vIp-vMFGmCYJtG3A", "추천제품": "쏙쉐이크 어퍼볼캡", "아이디어": ""},
     {"구분": "자사", "세부유형": "프로젝트 협업", "이름": "아이뽀 i4", "URL": "https://youtube.com/channel/UC6jtibPJUrtufKBZCm6gbIg", "추천제품": "멜브 솔브", "아이디어": ""},
     {"구분": "자사", "세부유형": "프로젝트 협업", "이름": "대생이", "URL": "https://youtube.com/channel/UChE5nZAIhWS5vYTRjsUgRpQ", "추천제품": "어퍼 볼캡 체크셔츠", "아이디어": ""},
-    # 🌍 외부 (43명 전체)
+    # 외부 크리에이터 (43명 전체 - 생략 없음!)
     {"구분": "외부", "세부유형": "외부", "이름": "조재원", "URL": "https://youtube.com/channel/UC2o_y872S6YvaO1K8EYnoxg", "추천제품": "쏙쉐이크", "아이디어": "동금여사님 먹방"},
     {"구분": "외부", "세부유형": "외부", "이름": "송대익", "URL": "https://youtube.com/channel/UCreFV1bKkKE6ufPtd5XeEJw", "추천제품": "쏙쉐이크", "아이디어": "자취 생활 노출"},
     {"구분": "외부", "세부유형": "외부", "이름": "엄지렐라", "URL": "https://youtube.com/channel/UCLXafJ8yYXeUN_eHai-6Pgw", "추천제품": "어퍼 체크셔츠", "아이디어": ""},
@@ -126,7 +124,6 @@ yt_data = [
     {"구분": "외부", "세부유형": "외부", "이름": "허진희여사", "URL": "https://youtube.com/channel/UCsK4opmMoeLsRsZU54ghvtQ", "추천제품": "멜브 립타투", "아이디어": ""},
     {"구분": "외부", "세부유형": "외부", "이름": "냥이아빠", "URL": "https://youtube.com/channel/UC5AAf4_zZxk-mCl46TogZQQ", "추천제품": "쏙쉐이크", "아이디어": ""},
     {"구분": "외부", "세부유형": "외부", "이름": "김민지 KIMMINGEE", "URL": "https://youtube.com/channel/UCB9jzo97ZxA5Kl6JDfX0UPw", "추천제품": "멜브 립타투", "아이디어": ""},
-    # 🌍 외부 - 기동 (3명)
     {"구분": "외부", "세부유형": "기동", "이름": "김크리스탈", "URL": "https://youtube.com/channel/UCcNYkzLMSkSiYaiAYjUNzRg", "추천제품": "멜브 솔브", "아이디어": ""},
     {"구분": "외부", "세부유형": "기동", "이름": "다인이공", "URL": "https://youtube.com/channel/UCs7Bw5CQK82AHhyMQ59NZWA", "추천제품": "쏙쉐이크", "아이디어": ""},
     {"구분": "외부", "세부유형": "기동", "이름": "김밍 KIMMING", "URL": "https://youtube.com/channel/UCTjwlF8Y8hxR85JPUoZv-6A", "추천제품": "멜브 솔브 어퍼 쏙쉐이크", "아이디어": ""}
@@ -164,12 +161,8 @@ agency_data = [
 ]
 df_agency_master = pd.DataFrame(agency_data)
 
-# 컨펌용 전체 통합 데이터
-df_all = pd.concat([df_yt_master, df_vendor_master, df_agency_master], ignore_index=True)
-if '컨펌상태' not in df_all.columns: df_all['컨펌상태'] = '대기'
-
 # ==========================================
-# 3. 갤러리 및 이미지 함수
+# 3. 영구 캐싱 및 이미지 함수
 # ==========================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(BASE_DIR, "profile_cache.json")
