@@ -176,18 +176,24 @@ def get_yt_profile_pic(url, api_key):
         save_cache(st.session_state.img_cache)
         return img_url
     except:
-        # 사진을 못 찾거나 에러가 나도 그리드 행열이 무너지지 않도록 고정 크기 반환
         return "https://via.placeholder.com/300x300.png?text=Not+Found"
 
 def draw_gallery(df_subset):
-    """유튜브 크리에이터 전용 갤러리 뷰"""
     cols = st.columns(4)
     for i, row in df_subset.iterrows():
         with cols[i % 4]:
-            # 핵심 수정: with 문으로 묶어서 '빈칸' 없이 카드 안에 모든 내용이 쏙 들어가게 만듭니다.
             with st.container(border=True):
                 pic_url = get_yt_profile_pic(row['URL'], yt_key)
-                st.image(pic_url, use_container_width=True)
+                
+                st.markdown(
+                    f'''
+                    <div style="width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 8px; margin-bottom: 15px;">
+                        <img src="{pic_url}" style="width: 100%; height: 100%; object-fit: cover;">
+                    </div>
+                    ''', 
+                    unsafe_allow_html=True
+                )
+                
                 st.subheader(row['이름'])
                 st.caption(f"{row['세부유형']}")
                 st.markdown(f"**🎯 추천:** {row['추천제품'] if row['추천제품'] else '-'}")
