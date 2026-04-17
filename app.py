@@ -1,29 +1,34 @@
 import streamlit as st
 import pandas as pd
 from googleapiclient.discovery import build
+from streamlit_gsheets import GSheetsConnection
 import json
 import os
 
 # ==========================================
-# 1. 페이지 설정 및 보안 로드
+# 1. 페이지 설정 및 스타일
 # ==========================================
-st.set_page_config(page_title="Glowuprizz PB Dashboard", page_icon="🚀", layout="wide")
-st.title("🚀 인플루언서 리스트 대시보드")
+st.set_page_config(page_title="Glowuprizz PB Seeding", page_icon="🚀", layout="wide")
+st.title("🚀 Glowuprizz 인플루언서 관리 및 컨펌 시스템")
 
+# API 키 및 구글 시트 연결
 yt_key = st.secrets.get("YOUTUBE_KEY", "")
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+except:
+    st.error("⚠️ 구글 시트 연결 설정(Secrets)이 필요합니다. 현재는 임시 모드로 작동합니다.")
+    conn = None
 
 with st.sidebar:
-    st.header("🔑 API 설정")
+    st.header("🔑 API 및 시스템 설정")
     if not yt_key:
         yt_key = st.text_input("YouTube API Key 입력", type="password")
-        st.warning("Secrets 설정이 되어있지 않아 수동 입력이 필요합니다.")
     else:
-        st.success("✅ YouTube API 연동 중")
-    st.markdown("---")
-    st.info("이 대시보드는 인플루언서 리스트 컨펌 및 관리를 위해 구축되었습니다.")
+        st.success("✅ YouTube 연동 완료")
+    st.info("이 시스템은 실시간 분석 및 대표님 컨펌 저장을 지원합니다.")
 
 # ==========================================
-# 2. 데이터 세팅 (누락 없는 전체 100% 리스트)
+# # 2. 데이터 세팅 (누락 없는 전체 100% 리스트)
 # ==========================================
 yt_data = [
     # 🏢 자사 - 전속 (10명)
@@ -132,75 +137,43 @@ agency_data = [
 ]
 df_agency = pd.DataFrame(agency_data)
 
-# ==========================================
-# 3. 영구 캐싱 및 이미지 함수
-# ==========================================
-CACHE_FILE = "profile_cache.json"
+# 전체 데이터 통합
+df_all = pd.concat([df_yt_master, df_vendor_master, df_agency_master], ignore_index=True)
+if '컨펌상태' not in df_all.columns: df_all['컨펌상태'] = '대기'
 
+# ==========================================
+# 3. 헬퍼 함수 (이미지 & 캐싱)
+# ==========================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(BASE_DIR, "profile_cache.json")
 
 def load_cache():
-    # 파일이 없으면 즉시 빈 파일을 생성합니다.
     if not os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "w", encoding='utf-8') as f:
-            json.dump({}, f)
+        with open(CACHE_FILE, "w", encoding='utf-8') as f: json.dump({}, f)
         return {}
-    with open(CACHE_FILE, "r", encoding='utf-8') as f:
-        return json.load(f)
+    with open(CACHE_FILE, "r", encoding='utf-8') as f: return json.load(f)
 
 def save_cache(cache):
-    with open(CACHE_FILE, "w", encoding='utf-8') as f:
-        json.dump(cache, f, ensure_ascii=False, indent=4)
+    with open(CACHE_FILE, "w", encoding='utf-8') as f: json.dump(cache, f, ensure_ascii=False, indent=4)
 
-# 페이지 시작 시 캐시 로드 및 세션 저장
-if 'img_cache' not in st.session_state:
-    st.session_state.img_cache = load_cache()
-
-# 사이드바에 파일 위치 정보 표시 (디버깅용)
-with st.sidebar:
-    st.markdown("---")
-    st.caption(f"📂 캐시 파일 위치: {CACHE_FILE}")
-    if st.button("💾 캐시 강제 저장 테스트"):
-        save_cache(st.session_state.img_cache)
-        st.success("파일 저장 시도 완료!")
+if 'img_cache' not in st.session_state: st.session_state.img_cache = load_cache()
 
 def get_yt_profile_pic(url, api_key):
-    # 1. 캐시 확인
-    if url in st.session_state.img_cache:
-        return st.session_state.img_cache[url]
-    
-    if not api_key:
-        return "https://via.placeholder.com/300x300.png?text=No+Key"
-    
+    if url in st.session_state.img_cache: return st.session_state.img_cache[url]
+    if not api_key or "instagram" in url: return "https://via.placeholder.com/300x300.png?text=Glowuprizz"
     try:
         youtube = build('youtube', 'v3', developerKey=api_key)
-        c_id = None
-        
-        # 2. 채널 ID 추출
-        if '/channel/' in url:
-            c_id = url.split('/channel/')[1].split('/')[0].split('?')[0]
+        if '/channel/' in url: c_id = url.split('/channel/')[1].split('/')[0].split('?')[0]
         elif '@' in url:
             handle = '@' + url.split('@')[1].split('/')[0].split('?')[0]
             res = youtube.search().list(part="snippet", q=handle, type="channel", maxResults=1).execute()
-            if res['items']:
-                c_id = res['items'][0]['snippet']['channelId']
-        
-        # 3. 이미지 URL 획득 및 저장
-        if c_id:
-            c_res = youtube.channels().list(part="snippet", id=c_id).execute()
-            img_url = c_res['items'][0]['snippet']['thumbnails']['medium']['url']
-            
-            # 실시간 세션 및 로컬 파일에 저장
-            st.session_state.img_cache[url] = img_url
-            save_cache(st.session_state.img_cache)
-            return img_url
-            
-    except Exception as e:
-        # 에러 발생 시 로그 확인용 (콘솔창에 출력됨)
-        print(f"Error fetching {url}: {e}")
-    
-    return "https://via.placeholder.com/300x300.png?text=Not+Found"
+            c_id = res['items'][0]['snippet']['channelId']
+        c_res = youtube.channels().list(part="snippet", id=c_id).execute()
+        img_url = c_res['items'][0]['snippet']['thumbnails']['medium']['url']
+        st.session_state.img_cache[url] = img_url
+        save_cache(st.session_state.img_cache)
+        return img_url
+    except: return "https://via.placeholder.com/300x300.png?text=Not+Found"
 
 def draw_gallery(df_subset):
     cols = st.columns(4)
@@ -208,73 +181,52 @@ def draw_gallery(df_subset):
         with cols[i % 4]:
             with st.container(border=True):
                 pic_url = get_yt_profile_pic(row['URL'], yt_key)
-                
-                st.markdown(
-                    f'''
-                    <div style="width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 8px; margin-bottom: 15px;">
-                        <img src="{pic_url}" style="width: 100%; height: 100%; object-fit: cover;">
-                    </div>
-                    ''', 
-                    unsafe_allow_html=True
-                )
-                
+                st.markdown(f'<div style="width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 8px; margin-bottom: 15px;"><img src="{pic_url}" style="width: 100%; height: 100%; object-fit: cover;"></div>', unsafe_allow_html=True)
                 st.subheader(row['이름'])
                 st.caption(f"{row['세부유형']}")
                 st.markdown(f"**🎯 추천:** {row['추천제품'] if row['추천제품'] else '-'}")
-                with st.expander("💡 콘텐츠 아이디어"):
-                    st.write(row['아이디어'] if row['아이디어'] else "아이디어 구상 중")
-                st.link_button("채널 바로가기", row['URL'], use_container_width=True)
+                with st.expander("💡 콘텐츠 아이디어"): st.write(row['아이디어'] if row['아이디어'] else "구상 중")
+                st.link_button("링크 이동", row['URL'], use_container_width=True)
 
 # ==========================================
-# 4. 화면 구성 (탭 인터페이스)
+# 4. 탭 구성 (컨펌 시스템 포함)
 # ==========================================
-tab1, tab2, tab3, tab4 = st.tabs(["🏢 자사", "🌍 외부", "🤝 벤더사", "🏢 소속사"])
+tabs = st.tabs(["📊 전체 컨펌 리스트", "🏢 자사", "🌍 외부", "🤝 벤더사", "🏢 소속사"])
 
-with tab1:
+with tabs[0]:
+    st.header("📋 대표님 컨펌 관리 (전체 데이터)")
+    st.info("💡 컨펌 상태를 변경하고 아래 '구글 시트 저장' 버튼을 누르면 영구 기록됩니다.")
+    
+    # 데이터 에디터 (컨펌 UI)
+    edited_df = st.data_editor(
+        df_all,
+        column_config={
+            "URL": st.column_config.LinkColumn("링크"),
+            "컨펌상태": st.column_config.SelectboxColumn("컨펌여부", options=["대기", "승인 ✅", "반려 ❌", "보류 ⏳"])
+        },
+        use_container_width=True, hide_index=True
+    )
+    
+    if st.button("💾 구글 시트에 컨펌 결과 저장하기"):
+        if conn:
+            conn.update(worksheet="Sheet1", data=edited_df)
+            st.success("✅ 구글 시트에 성공적으로 저장되었습니다!")
+        else:
+            st.error("구글 시트 연동 설정이 되어있지 않습니다.")
+
+with tabs[1]:
     st.header("🏢 자사 크리에이터")
-    
-    # 1. 전속 리스트
-    st.subheader("💎 전속")
-    df_exclusive = df_yt[(df_yt['구분'] == '자사') & (df_yt['세부유형'] == '전속')].reset_index(drop=True)
-    draw_gallery(df_exclusive)
-    
-    st.divider() # 예쁜 가로줄(구분선)
-    
-    # 2. 파트너십 리스트
-    st.subheader("🤝 파트너십")
-    df_partnership = df_yt[(df_yt['구분'] == '자사') & (df_yt['세부유형'] == '파트너십')].reset_index(drop=True)
-    draw_gallery(df_partnership)
-    
-    st.divider() # 예쁜 가로줄(구분선)
-    
-    # 3. 프로젝트 협업 리스트
-    st.subheader("🚀 프로젝트 협업")
-    df_project = df_yt[(df_yt['구분'] == '자사') & (df_yt['세부유형'] == '프로젝트 협업')].reset_index(drop=True)
-    draw_gallery(df_project)
+    draw_gallery(df_yt_master[df_yt_master['구분']=='자사'])
 
-with tab2:
-    st.header("외부 크리에이터")
-    draw_gallery(df_yt[df_yt['구분'] == '외부'].reset_index(drop=True))
+with tabs[2]:
+    st.header("🌍 외부 크리에이터")
+    draw_gallery(df_yt_master[df_yt_master['구분']=='외부'])
 
-with tab3:
-    st.header("🤝 벤더사 리스트 (Instagram)")
-    st.dataframe(
-        df_vendor, 
-        use_container_width=True, 
-        column_config={"URL": st.column_config.LinkColumn("Instagram 링크")},
-        hide_index=True
-    )
+with tabs[3]:
+    st.header("🤝 벤더사 (Instagram)")
+    st.dataframe(df_vendor_master, use_container_width=True, hide_index=True)
 
-with tab4:
+with tabs[4]:
     st.header("🏢 소속사 협업 리스트")
-    st.info("**RS 30% 기준**")
-    st.markdown("""
-    **📞 소속사 담당자 연락처**
-    * **샌드박스:** AD2 l BD l 허현지님 (hjhuh@sandbox.co.kr)
-    * **트레져헌터:** 숏폼사업팀 박예은 매니저님 (yeeun_p@treasurehunter.co.kr)
-    """)
-    st.dataframe(
-        df_agency, 
-        use_container_width=True, 
-        hide_index=True
-    )
+    st.info("**RS 30% 기준 진행** / 샌드박스: hjhuh@sandbox.co.kr / 트레져헌터: yeeun_p@treasurehunter.co.kr")
+    st.dataframe(df_agency_master, use_container_width=True, hide_index=True)
