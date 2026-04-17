@@ -139,8 +139,13 @@ CACHE_FILE = "profile_cache.json"
 
 def load_cache():
     if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "r") as f: return json.load(f)
-    return {}
+        with open(CACHE_FILE, "r") as f: 
+            return json.load(f)
+    else:
+        # 파일이 없으면 빈 상태로 하나 만들고 시작합니다.
+        with open(CACHE_FILE, "w") as f:
+            json.dump({}, f)
+        return {}
 
 def save_cache(cache):
     with open(CACHE_FILE, "w") as f: json.dump(cache, f)
@@ -151,8 +156,10 @@ if 'img_cache' not in st.session_state:
 def get_yt_profile_pic(url, api_key):
     if url in st.session_state.img_cache:
         return st.session_state.img_cache[url]
+    
+    # 에러나 키가 없을 때도 크기가 완벽히 똑같은 정사각형(300x300) 임시 이미지를 띄워서 각을 맞춥니다.
     if not api_key:
-        return "https://via.placeholder.com/150?text=No+Key"
+        return "https://via.placeholder.com/300x300.png?text=No+Key"
     
     try:
         youtube = build('youtube', 'v3', developerKey=api_key)
@@ -169,22 +176,24 @@ def get_yt_profile_pic(url, api_key):
         save_cache(st.session_state.img_cache)
         return img_url
     except:
-        return "https://via.placeholder.com/150?text=Error"
+        # 사진을 못 찾거나 에러가 나도 그리드 행열이 무너지지 않도록 고정 크기 반환
+        return "https://via.placeholder.com/300x300.png?text=Not+Found"
 
 def draw_gallery(df_subset):
     """유튜브 크리에이터 전용 갤러리 뷰"""
     cols = st.columns(4)
     for i, row in df_subset.iterrows():
         with cols[i % 4]:
-            st.container(border=True)
-            pic_url = get_yt_profile_pic(row['URL'], yt_key)
-            st.image(pic_url, use_container_width=True)
-            st.subheader(row['이름'])
-            st.caption(f"{row['세부유형']}")
-            st.markdown(f"**🎯 추천:** {row['추천제품'] if row['추천제품'] else '-'}")
-            with st.expander("💡 콘텐츠 아이디어"):
-                st.write(row['아이디어'] if row['아이디어'] else "아이디어 구상 중")
-            st.link_button("채널 바로가기", row['URL'], use_container_width=True)
+            # 핵심 수정: with 문으로 묶어서 '빈칸' 없이 카드 안에 모든 내용이 쏙 들어가게 만듭니다.
+            with st.container(border=True):
+                pic_url = get_yt_profile_pic(row['URL'], yt_key)
+                st.image(pic_url, use_container_width=True)
+                st.subheader(row['이름'])
+                st.caption(f"{row['세부유형']}")
+                st.markdown(f"**🎯 추천:** {row['추천제품'] if row['추천제품'] else '-'}")
+                with st.expander("💡 콘텐츠 아이디어"):
+                    st.write(row['아이디어'] if row['아이디어'] else "아이디어 구상 중")
+                st.link_button("채널 바로가기", row['URL'], use_container_width=True)
 
 # ==========================================
 # 4. 화면 구성 (탭 인터페이스)
