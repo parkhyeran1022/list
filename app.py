@@ -230,9 +230,32 @@ def draw_gallery(df_subset):
 # ==========================================
 tab1, tab2, tab3, tab4 = st.tabs(["🏢 자사", "🌍 외부", "🤝 벤더사", "🏢 소속사"])
 
+# ==========================================
+# 4. 화면 구성 (탭 인터페이스)
+# ==========================================
+tab1, tab2, tab3, tab4 = st.tabs(["🏢 자사", "🌍 외부", "🤝 벤더사", "🏢 소속사"])
+
 with tab1:
-    st.header("자사 크리에이터 (전속/파트너십/프로젝트)")
-    draw_gallery(df_yt[df_yt['구분'] == '자사'].reset_index(drop=True))
+    st.header("🏢 자사 크리에이터")
+    
+    # 1. 전속 리스트
+    st.subheader("💎 전속")
+    df_exclusive = df_yt[(df_yt['구분'] == '자사') & (df_yt['세부유형'] == '전속')].reset_index(drop=True)
+    draw_gallery(df_exclusive)
+    
+    st.divider() # 예쁜 가로줄(구분선)
+    
+    # 2. 파트너십 리스트
+    st.subheader("🤝 파트너십")
+    df_partnership = df_yt[(df_yt['구분'] == '자사') & (df_yt['세부유형'] == '파트너십')].reset_index(drop=True)
+    draw_gallery(df_partnership)
+    
+    st.divider() # 예쁜 가로줄(구분선)
+    
+    # 3. 프로젝트 협업 리스트
+    st.subheader("🚀 프로젝트 협업")
+    df_project = df_yt[(df_yt['구분'] == '자사') & (df_yt['세부유형'] == '프로젝트 협업')].reset_index(drop=True)
+    draw_gallery(df_project)
 
 with tab2:
     st.header("외부 크리에이터")
