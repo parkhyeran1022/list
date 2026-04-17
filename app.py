@@ -137,46 +137,70 @@ df_agency = pd.DataFrame(agency_data)
 # ==========================================
 CACHE_FILE = "profile_cache.json"
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CACHE_FILE = os.path.join(BASE_DIR, "profile_cache.json")
+
 def load_cache():
-    if os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "r") as f: 
-            return json.load(f)
-    else:
-        # 파일이 없으면 빈 상태로 하나 만들고 시작합니다.
-        with open(CACHE_FILE, "w") as f:
+    # 파일이 없으면 즉시 빈 파일을 생성합니다.
+    if not os.path.exists(CACHE_FILE):
+        with open(CACHE_FILE, "w", encoding='utf-8') as f:
             json.dump({}, f)
         return {}
+    with open(CACHE_FILE, "r", encoding='utf-8') as f:
+        return json.load(f)
 
 def save_cache(cache):
-    with open(CACHE_FILE, "w") as f: json.dump(cache, f)
+    with open(CACHE_FILE, "w", encoding='utf-8') as f:
+        json.dump(cache, f, ensure_ascii=False, indent=4)
 
+# 페이지 시작 시 캐시 로드 및 세션 저장
 if 'img_cache' not in st.session_state:
     st.session_state.img_cache = load_cache()
 
+# 사이드바에 파일 위치 정보 표시 (디버깅용)
+with st.sidebar:
+    st.markdown("---")
+    st.caption(f"📂 캐시 파일 위치: {CACHE_FILE}")
+    if st.button("💾 캐시 강제 저장 테스트"):
+        save_cache(st.session_state.img_cache)
+        st.success("파일 저장 시도 완료!")
+
 def get_yt_profile_pic(url, api_key):
+    # 1. 캐시 확인
     if url in st.session_state.img_cache:
         return st.session_state.img_cache[url]
     
-    # 에러나 키가 없을 때도 크기가 완벽히 똑같은 정사각형(300x300) 임시 이미지를 띄워서 각을 맞춥니다.
     if not api_key:
         return "https://via.placeholder.com/300x300.png?text=No+Key"
     
     try:
         youtube = build('youtube', 'v3', developerKey=api_key)
+        c_id = None
+        
+        # 2. 채널 ID 추출
         if '/channel/' in url:
             c_id = url.split('/channel/')[1].split('/')[0].split('?')[0]
         elif '@' in url:
             handle = '@' + url.split('@')[1].split('/')[0].split('?')[0]
             res = youtube.search().list(part="snippet", q=handle, type="channel", maxResults=1).execute()
-            c_id = res['items'][0]['snippet']['channelId']
+            if res['items']:
+                c_id = res['items'][0]['snippet']['channelId']
         
-        c_res = youtube.channels().list(part="snippet", id=c_id).execute()
-        img_url = c_res['items'][0]['snippet']['thumbnails']['medium']['url']
-        st.session_state.img_cache[url] = img_url
-        save_cache(st.session_state.img_cache)
-        return img_url
-    except:
-        return "https://via.placeholder.com/300x300.png?text=Not+Found"
+        # 3. 이미지 URL 획득 및 저장
+        if c_id:
+            c_res = youtube.channels().list(part="snippet", id=c_id).execute()
+            img_url = c_res['items'][0]['snippet']['thumbnails']['medium']['url']
+            
+            # 실시간 세션 및 로컬 파일에 저장
+            st.session_state.img_cache[url] = img_url
+            save_cache(st.session_state.img_cache)
+            return img_url
+            
+    except Exception as e:
+        # 에러 발생 시 로그 확인용 (콘솔창에 출력됨)
+        print(f"Error fetching {url}: {e}")
+    
+    return "https://via.placeholder.com/300x300.png?text=Not+Found"
 
 def draw_gallery(df_subset):
     cols = st.columns(4)
