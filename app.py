@@ -9,7 +9,7 @@ import os
 # 1. 페이지 설정
 # ==========================================
 st.set_page_config(page_title="Glowuprizz PB Dashboard", page_icon="🚀", layout="wide")
-st.title("🚀 인플루언서 컨펌")
+st.title("🚀 인플루언서 컨펌 리스트")
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1rstN-Wpgen0gua78qI4lkt0OZhISw6pwLR8yJgR7G1s/edit?gid=0#gid=0"
 yt_key = st.secrets.get("YOUTUBE_KEY", "")
@@ -259,8 +259,11 @@ def draw_gallery_custom(df_subset, num_cols=8):
                 st.markdown(f'<div style="width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 4px; margin-bottom: 5px;"><img src="{pic_url}" style="width: 100%; height: 100%; object-fit: cover;"></div>', unsafe_allow_html=True)
                 st.markdown(f"**{row['이름']}**")
                 
-                # ⭐ 자사, 외부 모두 조회수/ER 동일하게 노출!
-                st.markdown(f"<p style='font-size:11px; color:blue;'>📈 {row.get('조회수', '-')} / ER {row.get('ER_표시', '-')}</p>", unsafe_allow_html=True)
+                # 통계 표시
+                st.markdown(f"<p style='margin-bottom:2px; font-size:11px; color:#1f77b4;'>📈 {row.get('조회수', '-')} / ER {row.get('ER_표시', '-')}</p>", unsafe_allow_html=True)
+                
+                # ⭐ 추천제품 복구! (0% 누락)
+                st.markdown(f"<p style='margin-bottom:5px; font-size:12px;'>🎯 <b>추천:</b> {row.get('추천제품', '-')}</p>", unsafe_allow_html=True)
                 
                 with st.expander("📝"): st.write(row['상세 정보'])
                 if row['URL'] != '-': st.link_button("🔗", row['URL'], use_container_width=True)
@@ -272,7 +275,7 @@ tab0, tab1, tab2, tab3, tab4 = st.tabs(["📊 통합 컨펌", "🏢 자사", "�
 
 with tab0:
     st.header("📋 전체 리스트 통합 컨펌")
-    st.info("💡 지정된 전속 멤버는 최상단에 고정되며, 이외 명단은 최근 10개 영상 평균 조회수 순으로 정렬되어 있습니다.")
+    st.info("💡 지정된 전속 멤버는 최상단에 고정되며, 이외 명단은 평균 조회수 순으로 정렬되어 있습니다.")
     display_df = st.session_state.df_master.drop(columns=['평균조회수', 'ER'])
     
     edited_df = st.data_editor(
