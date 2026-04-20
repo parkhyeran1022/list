@@ -9,7 +9,7 @@ import os
 # 1. 페이지 설정
 # ==========================================
 st.set_page_config(page_title="Glowuprizz PB Dashboard", page_icon="🚀", layout="wide")
-st.title("🚀 인플루언서 리스트 컨펌")
+st.title("🚀 인플루언서 컨펌")
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1rstN-Wpgen0gua78qI4lkt0OZhISw6pwLR8yJgR7G1s/edit?gid=0#gid=0"
 yt_key = st.secrets.get("YOUTUBE_KEY", "")
@@ -20,10 +20,10 @@ except:
     conn = None
 
 # ==========================================
-# 2. 실시간 유튜브 API 분석 함수 (캐싱 포함)
+# 2. 실시간 유튜브 API
 # ==========================================
-@st.cache_data(ttl=3600) # 1시간 동안 API 결과 보존 (할당량 절약)
-def fetch_yt_data(url, api_key):
+@st.cache_data(ttl=3600)
+def fetch_yt_data(url, api_key, is_shorts=False):
     res = {"pic": "https://via.placeholder.com/300x300.png?text=Glowuprizz", "views": 0, "er": 0.0}
     if not api_key or "youtube" not in url: return res
     try:
@@ -39,26 +39,38 @@ def fetch_yt_data(url, api_key):
         res["pic"] = c_res['items'][0]['snippet']['thumbnails']['medium']['url']
         uploads_id = c_res['items'][0]['contentDetails']['relatedPlaylists']['uploads']
         
-        v_res = youtube.playlistItems().list(part="contentDetails", playlistId=uploads_id, maxResults=15).execute()
+        v_res = youtube.playlistItems().list(part="contentDetails", playlistId=uploads_id, maxResults=25).execute()
         v_ids = [i['contentDetails']['videoId'] for i in v_res['items']]
         v_details = youtube.videos().list(part="contentDetails,statistics", id=','.join(v_ids)).execute()
         
-        long_stats = []
+        target_stats = []
         for v in v_details['items']:
-            dur = v['contentDetails']['duration']
-            if 'M' in dur or 'H' in dur: # 롱폼 필터
-                v_count = int(v['statistics'].get('viewCount', 0))
-                l_count = int(v['statistics'].get('likeCount', 0))
-                c_count = int(v['statistics'].get('commentCount', 0))
-                er_val = ((l_count + c_count) / v_count * 100) if v_count > 0 else 0
-                long_stats.append({'v': v_count, 'e': er_val})
-            if len(long_stats) >= 10: break
+            dur = v['contentDetails']['duration'] # e.g., PT1M, PT59S, PT1H
+            is_long = 'H' in dur or ('M' in dur and dur != 'PT1M')
             
-        if long_stats:
-            res["views"] = int(sum(s['v'] for s in long_stats) / len(long_stats))
-            res["er"] = round(sum(s['e'] for s in long_stats) / len(long_stats), 2)
+            v_count = int(v['statistics'].get('viewCount', 0))
+            l_count = int(v['statistics'].get('likeCount', 0))
+            c_count = int(v['statistics'].get('commentCount', 0))
+            er_val = ((l_count + c_count) / v_count * 100) if v_count > 0 else 0
+            
+            # 쇼츠/롱폼 기준에 맞는 영상만 10개 수집
+            if is_shorts and not is_long:
+                target_stats.append({'v': v_count, 'e': er_val})
+            elif not is_shorts and is_long:
+                target_stats.append({'v': v_count, 'e': er_val})
+                
+            if len(target_stats) >= 10: break
+            
+        if target_stats:
+            res["views"] = int(sum(s['v'] for s in target_stats) / len(target_stats))
+            res["er"] = round(sum(s['e'] for s in target_stats) / len(target_stats), 2)
         return res
     except: return res
+
+def fmt_v(v):
+    if pd.isna(v) or v == 0: return "-"
+    if v >= 10000: return f"{v/10000:.1f}만".replace(".0만", "만")
+    return f"{int(v):,}"
 
 # ==========================================
 # 3. 0% 누락 전체 리스트 (84명)
@@ -74,18 +86,18 @@ RAW_LIST = [
     {"구분": "자사", "세부유형": "전속", "이름": "채널주인 여깄음", "URL": "https://youtube.com/channel/UC9kUsuu1Giqa9V855EWa7-A", "추천제품": "-", "상세 정보": "-"},
     {"구분": "자사", "세부유형": "전속", "이름": "핏블리 FITVELY", "URL": "https://youtube.com/channel/UC3hRpIQ4x5niJDwjajQSVPg", "추천제품": "-", "상세 정보": "-"},
     {"구분": "자사", "세부유형": "전속", "이름": "재넌", "URL": "https://youtube.com/channel/UCem8l1w4OWhkqpoOg1SB4_w", "추천제품": "쏙쉐이크 어퍼볼캡", "상세 정보": "먹방 식단관리 노출"},
-    {"구분": "자사", "세부유형": "전속", "이름": "살빼조", "URL": "https://www.youtube.com/@dietjo311", "추천제품": "쏙쉐이크", "상세 정보": "아침 루틴 대용"},
-    {"구분": "자사", "세부유형": "파트너십", "이름": "매드브로 MadBros", "URL": "https://youtube.com/channel/UCiTcv_AxQQSx77yGikHHDZw", "추천제품": "볼캡 쏙쉐이크", "상세 정보": "활동 시 착용"},
+    {"구분": "자사", "세부유형": "전속", "이름": "살빼조", "URL": "https://www.youtube.com/@dietjo311", "추천제품": "쏙쉐이크", "상세 정보": "아침 루틴 식사 대용 노출"},
+    {"구분": "자사", "세부유형": "파트너십", "이름": "매드브로 MadBros", "URL": "https://youtube.com/channel/UCiTcv_AxQQSx77yGikHHDZw", "추천제품": "볼캡 쏙쉐이크", "상세 정보": "쓰줍맨 활동 시 착용"},
     {"구분": "자사", "세부유형": "파트너십", "이름": "독고독채널", "URL": "https://youtube.com/channel/UCEUSANZNPXY1JsBoqhQIgxQ", "추천제품": "쏙쉐이크", "상세 정보": "-"},
     {"구분": "자사", "세부유형": "파트너십", "이름": "김승배", "URL": "https://youtube.com/channel/UCPDiMzJdYb0Q-LxoP7W1j7g", "추천제품": "쏙쉐이크", "상세 정보": "-"},
-    {"구분": "자사", "세부유형": "파트너십", "이름": "kiu기우쌤", "URL": "https://youtube.com/channel/UCIZ5rCTYJ0s16FgT7OetVEQ", "추천제품": "솔브 모델링팩", "상세 정보": "셀프케어"},
-    {"구분": "자사", "세부유형": "파트너십", "이름": "비타민신지니", "URL": "https://youtube.com/channel/UC9trbyGOOjJmMea3w6c-e2A", "추천제품": "솔브 괄사", "상세 정보": "마사지 시연"},
+    {"구분": "자사", "세부유형": "파트너십", "이름": "kiu기우쌤", "URL": "https://youtube.com/channel/UCIZ5rCTYJ0s16FgT7OetVEQ", "추천제품": "솔브 모델링팩", "상세 정보": "셀프케어 루틴"},
+    {"구분": "자사", "세부유형": "파트너십", "이름": "비타민신지니", "URL": "https://youtube.com/channel/UC9trbyGOOjJmMea3w6c-e2A", "추천제품": "솔브 괄사크림", "상세 정보": "마사지 시연"},
     {"구분": "자사", "세부유형": "프로젝트 협업", "이름": "잡식맨", "URL": "https://youtube.com/channel/UCVILvX9vIp-vMFGmCYJtG3A", "추천제품": "쏙쉐이크", "상세 정보": "-"},
     {"구분": "자사", "세부유형": "프로젝트 협업", "이름": "아이뽀 i4", "URL": "https://youtube.com/channel/UC6jtibPJUrtufKBZCm6gbIg", "추천제품": "멜브 솔브", "상세 정보": "-"},
     {"구분": "자사", "세부유형": "프로젝트 협업", "이름": "대생이", "URL": "https://youtube.com/channel/UChE5nZAIhWS5vYTRjsUgRpQ", "추천제품": "어퍼 체크셔츠", "상세 정보": "-"},
-    # [외부 43명] - 조재원부터 김밍까지 (중략 없이 코드 반영)
-    {"구분": "외부", "세부유형": "외부", "이름": "조재원", "URL": "https://youtube.com/channel/UC2o_y872S6YvaO1K8EYnoxg", "추천제품": "쏙쉐이크", "상세 정보": "동금여사님"},
-    {"구분": "외부", "세부유형": "외부", "이름": "송대익", "URL": "https://youtube.com/channel/UCreFV1bKkKE6ufPtd5XeEJw", "추천제품": "쏙쉐이크", "상세 정보": "자취생활"},
+    # [외부 43명]
+    {"구분": "외부", "세부유형": "외부", "이름": "조재원", "URL": "https://youtube.com/channel/UC2o_y872S6YvaO1K8EYnoxg", "추천제품": "쏙쉐이크", "상세 정보": "동금여사님 먹방"},
+    {"구분": "외부", "세부유형": "외부", "이름": "송대익", "URL": "https://youtube.com/channel/UCreFV1bKkKE6ufPtd5XeEJw", "추천제품": "쏙쉐이크", "상세 정보": "자취 생활 노출"},
     {"구분": "외부", "세부유형": "외부", "이름": "엄지렐라", "URL": "https://youtube.com/channel/UCLXafJ8yYXeUN_eHai-6Pgw", "추천제품": "어퍼", "상세 정보": ""},
     {"구분": "외부", "세부유형": "외부", "이름": "숏박스", "URL": "https://youtube.com/channel/UC1B6SalAoiJD7eHfMUA9QrA", "추천제품": "어퍼", "상세 정보": ""},
     {"구분": "외부", "세부유형": "외부", "이름": "김선태", "URL": "https://youtube.com/channel/UCt-BApVtJGrvF5pCgbiNVeg", "추천제품": "쏙쉐이크", "상세 정보": ""},
@@ -155,14 +167,14 @@ RAW_LIST = [
 ]
 
 # ==========================================
-# 4. 데이터 로드 및 시트 동기화
+# 4. 데이터 로드, 정렬 및 시트 동기화
 # ==========================================
 def load_and_sync_data():
     master_df = pd.DataFrame(RAW_LIST)
     master_df['평균조회수'] = 0
     master_df['ER'] = 0.0
     
-    # 구글 시트에서 기존 컨펌상태 읽어오기
+    # 구글 시트 기존 상태 읽어오기
     if conn:
         try:
             sheet_df = conn.read(worksheet="Sheet1")
@@ -173,19 +185,38 @@ def load_and_sync_data():
         except: master_df['컨펌상태'] = '대기'
     else: master_df['컨펌상태'] = '대기'
 
-    # 유튜브 데이터 업데이트
+    # 유튜브 데이터 업데이트 (자사/외부는 롱폼, 소속사는 쇼츠)
     for idx, row in master_df.iterrows():
         if 'youtube' in row['URL']:
-            stats = fetch_yt_data(row['URL'], yt_key)
+            is_shorts = row['구분'] in ['샌드박스', '트레져헌터']
+            stats = fetch_yt_data(row['URL'], yt_key, is_shorts=is_shorts)
             master_df.at[idx, '평균조회수'] = stats['views']
             master_df.at[idx, 'ER'] = stats['er']
-            
-    master_df.insert(0, '번호', range(1, len(master_df) + 1))
-    cols = ['번호', '구분', '세부유형', '이름', '평균조회수', 'ER', '상세 정보', '추천제품', 'URL', '컨펌상태']
-    return master_df[cols]
+
+    # 5.1만 포맷 적용
+    master_df['조회수'] = master_df['평균조회수'].apply(fmt_v)
+    master_df['ER_표시'] = master_df['ER'].apply(lambda x: f"{x:.2f}%" if x > 0 else "-")
+
+    # ⭐ 상단 고정 멤버 및 조회수 정렬 로직
+    pinned = ["심장에박현서", "생각없이사는연", "예보링", "미지수", "채널주인 부재중", "매일제히", "채널주인 여깄음", "핏블리 FITVELY"]
+    
+    df_pinned = master_df[master_df['이름'].isin(pinned)].copy()
+    df_pinned['sort_order'] = df_pinned['이름'].apply(lambda x: pinned.index(x))
+    df_pinned = df_pinned.sort_values('sort_order').drop(columns=['sort_order'])
+    
+    df_others = master_df[~master_df['이름'].isin(pinned)].copy()
+    df_others = df_others.sort_values('평균조회수', ascending=False)
+    
+    # 병합 및 번호 부여
+    final_df = pd.concat([df_pinned, df_others], ignore_index=True)
+    final_df.insert(0, '번호', range(1, len(final_df) + 1))
+    
+    # ⭐ 열 순서 완벽 재배치
+    cols = ['번호', '구분', '세부유형', '이름', '조회수', 'ER_표시', '상세 정보', '추천제품', 'URL', '컨펌상태', '평균조회수', 'ER']
+    return final_df[cols]
 
 if 'df_master' not in st.session_state:
-    with st.spinner("🚀 유튜브 실시간 데이터를 분석하는 중..."):
+    with st.spinner("🚀 유튜브 최신 데이터를 분석 중입니다. 잠시만 기다려주세요..."):
         st.session_state.df_master = load_and_sync_data()
 
 # ==========================================
@@ -199,84 +230,90 @@ def _apply_bulk(target_df, status):
             st.session_state[f"chk_{idx}"] = False # 해제
             count += 1
     if count > 0:
-        if conn: conn.update(worksheet="Sheet1", data=st.session_state.df_master)
-        st.success(f"✅ {count}건이 '{status}' 처리되어 시트에 저장되었습니다!")
+        if conn:
+            try:
+                conn.update(worksheet="Sheet1", data=st.session_state.df_master.drop(columns=['평균조회수', 'ER'], errors='ignore'))
+                st.success(f"✅ {count}명 상태 업데이트 및 시트 저장 완료!")
+            except: pass
         st.rerun()
 
 def draw_gallery_custom(df_subset, num_cols=8):
-    # ⭐ 에러 방지: 평균조회수 컬럼이 있는지 확인 후 정렬
+    # 갤러리는 무조건 평균조회수 높은 순으로 렌더링
     if '평균조회수' in df_subset.columns:
         df_clean = df_subset.sort_values('평균조회수', ascending=False).reset_index(drop=True)
-    else:
-        df_clean = df_subset.reset_index(drop=True)
+    else: df_clean = df_subset.reset_index(drop=True)
         
     cols = st.columns(num_cols)
     opts = ["대기", "승인 ✅", "반려 ❌", "보류 ⏳"]
     
     for i, row in df_clean.iterrows():
-        # 원본 인덱스 매칭
         master_idx = st.session_state.df_master[st.session_state.df_master['이름'] == row['이름']].index[0]
         
         with cols[i % num_cols]:
             with st.container(border=True):
-                # 프로필 상단 체크박스 & 선택박스
                 c1, c2 = st.columns([1, 3])
                 with c1: st.checkbox("S", key=f"chk_{master_idx}", label_visibility="collapsed")
                 with c2:
                     cur = st.session_state.df_master.at[master_idx, '컨펌상태']
                     new = st.selectbox("S", opts, index=opts.index(cur) if cur in opts else 0, key=f"sel_{master_idx}", label_visibility="collapsed")
-                    if new != cur:
-                        st.session_state.df_master.at[master_idx, '컨펌상태'] = new
+                    if new != cur: st.session_state.df_master.at[master_idx, '컨펌상태'] = new
 
-                stats = fetch_yt_data(row['URL'], yt_key)
-                st.markdown(f'<div style="width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 4px; margin-bottom: 5px;"><img src="{stats["pic"]}" style="width: 100%; height: 100%; object-fit: cover;"></div>', unsafe_allow_html=True)
+                # 캐시된 프사 가져오기
+                pic_url = st.session_state.full_cache.get(row['URL'], {}).get('pic', "https://via.placeholder.com/300x300.png?text=Glowuprizz")
+                st.markdown(f'<div style="width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 4px; margin-bottom: 5px;"><img src="{pic_url}" style="width: 100%; height: 100%; object-fit: cover;"></div>', unsafe_allow_html=True)
+                
                 st.markdown(f"**{row['이름']}**")
                 
-                # 통계 표시
-                if row['구분'] == '자사': 
-                    st.markdown("<p style='font-size:11px; color:gray;'>📈 - / -</p>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<p style='font-size:11px; color:blue;'>📈 {row['평균조회수']:,} / {row['ER']}%</p>", unsafe_allow_html=True)
+                # 자사도 외부처럼 통계 표시!
+                st.markdown(f"<p style='font-size:11px; color:blue;'>📈 {row['조회수']} / ER {row['ER_표시']}</p>", unsafe_allow_html=True)
                 
                 with st.expander("📝"): st.write(row['상세 정보'])
                 if row['URL'] != '-': st.link_button("🔗", row['URL'], use_container_width=True)
 
 # ==========================================
-# 6. 화면 구성
+# 6. 탭 화면 구성
 # ==========================================
 tabs = st.tabs(["📊 통합 컨펌", "🏢 자사", "🌍 외부", "🤝 벤더사", "🏢 소속사"])
 
 with tabs[0]:
     st.header("📋 전체 리스트 통합 컨펌")
+    st.info("💡 지정된 전속 멤버는 최상단에 고정되며, 이외 명단은 평균 조회수 순으로 정렬되어 있습니다.")
+    
+    # 표시할 때 정렬용 원본 숫자 컬럼 숨기기
+    display_df = st.session_state.df_master.drop(columns=['평균조회수', 'ER'])
+    
     edited_df = st.data_editor(
-        st.session_state.df_master,
+        display_df,
         column_config={
             "번호": st.column_config.NumberColumn("No.", width="small", disabled=True),
-            "평균조회수": st.column_config.NumberColumn("평균조회수", format="%d회"),
             "URL": st.column_config.LinkColumn("링크"),
             "컨펌상태": st.column_config.SelectboxColumn("결정", options=["대기", "승인 ✅", "반려 ❌", "보류 ⏳"])
         },
         use_container_width=True, hide_index=True, key="main_editor"
     )
-    st.session_state.df_master = edited_df
+    
+    # 에디터에서 바뀐 컨펌 상태를 마스터에 동기화
+    st.session_state.df_master['컨펌상태'] = edited_df['컨펌상태']
+    
     c_save, c_link = st.columns([1, 4])
     with c_save:
         if st.button("💾 구글 시트 저장", type="primary"):
             if conn:
-                conn.update(worksheet="Sheet1", data=st.session_state.df_master)
-                st.success("✅ 저장 성공!")
+                try:
+                    conn.update(worksheet="Sheet1", data=display_df)
+                    st.success("✅ 구글 시트 저장 성공!")
+                except Exception as e: st.error(f"실패: {e}")
     with c_link: st.link_button("📂 원본 시트 열기", SHEET_URL)
 
 with tabs[1]:
     st.header("🏢 자사 크리에이터")
-    # 짧은 슬라이더
     c_sl, c_b1, c_b2, c_b3 = st.columns([2, 1, 1, 1])
     n_our = c_sl.slider("배치", 4, 8, 8, key="sl_our")
-    if c_b1.button("모두 승인", key="b_a_o"): _apply_bulk(st.session_state.df_master[st.session_state.df_master['구분']=='자사'], "승인 ✅")
-    if c_b2.button("모두 반려", key="b_r_o"): _apply_bulk(st.session_state.df_master[st.session_state.df_master['구분']=='자사'], "반려 ❌")
-    if c_b3.button("모두 보류", key="b_w_o"): _apply_bulk(st.session_state.df_master[st.session_state.df_master['구분']=='자사'], "보류 ⏳")
-    
     df_our = st.session_state.df_master[st.session_state.df_master['구분']=='자사']
+    if c_b1.button("모두 승인", key="b_a_o"): _apply_bulk(df_our, "승인 ✅")
+    if c_b2.button("모두 반려", key="b_r_o"): _apply_bulk(df_our, "반려 ❌")
+    if c_b3.button("모두 보류", key="b_w_o"): _apply_bulk(df_our, "보류 ⏳")
+    
     for sub in ["전속", "파트너십", "프로젝트 협업"]:
         st.markdown(f"**💎 {sub}**")
         draw_gallery_custom(df_our[df_our['세부유형']==sub], num_cols=n_our)
@@ -293,11 +330,13 @@ with tabs[2]:
 
 with tabs[3]:
     st.header("🤝 벤더사 리스트")
-    df_vn = st.session_state.df_master[st.session_state.df_master['구분']=='벤더사']
-    st.dataframe(df_vn, use_container_width=True, hide_index=True, column_config={"URL": st.column_config.LinkColumn("Instagram")})
+    # 벤더사는 조회수/ER 컬럼 제거하여 깔끔하게 표시
+    df_vn = st.session_state.df_master[st.session_state.df_master['구분']=='벤더사'].drop(columns=['평균조회수', 'ER', '조회수', 'ER_표시'], errors='ignore')
+    st.dataframe(df_vn, use_container_width=True, hide_index=True, column_config={"URL": st.column_config.LinkColumn("Instagram 링크")})
 
 with tabs[4]:
     st.header("🏢 소속사 협업 리스트")
     st.info("**📞 담당자:** 샌드박스 허현지님(hjhuh@sandbox.co.kr) / 트레져헌터 박예은님(yeeun_p@treasurehunter.co.kr)")
-    df_ag = st.session_state.df_master[st.session_state.df_master['구분'].isin(['샌드박스', '트레져헌터'])]
-    st.dataframe(df_ag, use_container_width=True, hide_index=True, column_config={"URL": st.column_config.LinkColumn("채널")})
+    # 소속사는 조회수/ER이 의미 있으므로 유지 (숨김용 원본 숫자만 드롭)
+    df_ag = st.session_state.df_master[st.session_state.df_master['구분'].isin(['샌드박스', '트레져헌터'])].drop(columns=['평균조회수', 'ER'], errors='ignore')
+    st.dataframe(df_ag, use_container_width=True, hide_index=True, column_config={"URL": st.column_config.LinkColumn("채널 링크")})
