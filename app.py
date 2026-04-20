@@ -9,24 +9,22 @@ import os
 # 1. 페이지 설정 및 보안 로드
 # ==========================================
 st.set_page_config(page_title="Glowuprizz PB Dashboard", page_icon="🚀", layout="wide")
-st.title("🚀 인플루언서 통합 컨펌 및 관리 시스템")
+st.title("🚀 인플루언서 컨펌 관리 시스템")
 
-# 구글 시트 주소
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1rstN-Wpgen0gua78qI4lkt0OZhISw6pwLR8yJgR7G1s/edit?gid=0#gid=0"
-
 yt_key = st.secrets.get("YOUTUBE_KEY", "")
+
 try:
     conn = st.connection("gsheets", type=GSheetsConnection)
-except Exception as e:
-    st.error("⚠️ 구글 시트 연결 설정을 확인해주세요.")
+except:
     conn = None
 
 # ==========================================
-# 2. 데이터 세팅 (0% 누락 - 84명 전체 명단)
+# 2. 마스터 데이터 (누락 0%)
 # ==========================================
-
-# [1] 자사 데이터 (18명)
-yt_data_our = [
+# [중요] 모든 명단을 리스트화 (데이터 병합 기준)
+raw_data = [
+    # --- 자사 (18명) ---
     {"구분": "자사", "세부유형": "전속", "이름": "심장에박현서", "URL": "https://youtube.com/channel/UCo4m81FJ-dT8MqijBlhbN2A", "추천제품": "-", "아이디어": "-"},
     {"구분": "자사", "세부유형": "전속", "이름": "생각없이사는연", "URL": "https://youtube.com/channel/UCyVEhwFJ1HF66JqjxMkc-Uw", "추천제품": "-", "아이디어": "-"},
     {"구분": "자사", "세부유형": "전속", "이름": "예보링", "URL": "https://youtube.com/channel/UCby6TnEm4xha2NIncRxC2EQ", "추천제품": "-", "아이디어": "-"},
@@ -41,18 +39,16 @@ yt_data_our = [
     {"구분": "자사", "세부유형": "파트너십", "이름": "독고독채널", "URL": "https://youtube.com/channel/UCEUSANZNPXY1JsBoqhQIgxQ", "추천제품": "쏙쉐이크", "아이디어": "-"},
     {"구분": "자사", "세부유형": "파트너십", "이름": "김승배", "URL": "https://youtube.com/channel/UCPDiMzJdYb0Q-LxoP7W1j7g", "추천제품": "쏙쉐이크", "아이디어": "-"},
     {"구분": "자사", "세부유형": "파트너십", "이름": "kiu기우쌤", "URL": "https://youtube.com/channel/UCIZ5rCTYJ0s16FgT7OetVEQ", "추천제품": "솔브 모델링팩", "아이디어": "셀프케어 루틴"},
-    {"구분": "자사", "세부유형": "파트너십", "이름": "비타민신지니 VitaminJINY", "URL": "https://youtube.com/channel/UC9trbyGOOjJmMea3w6c-e2A", "추천제품": "솔브 괄사크림", "아이디어": "붓기 마사지 시연"},
-    {"구분": "자사", "세부유형": "프로젝트 협업", "이름": "잡식맨 JOBXICMAN", "URL": "https://youtube.com/channel/UCVILvX9vIp-vMFGmCYJtG3A", "추천제품": "쏙쉐이크 어퍼볼캡", "아이디어": "-"},
+    {"구분": "자사", "세부유형": "파트너십", "이름": "비타민신지니", "URL": "https://youtube.com/channel/UC9trbyGOOjJmMea3w6c-e2A", "추천제품": "솔브 괄사크림", "아이디어": "마사지 시연"},
+    {"구분": "자사", "세부유형": "프로젝트 협업", "이름": "잡식맨", "URL": "https://youtube.com/channel/UCVILvX9vIp-vMFGmCYJtG3A", "추천제품": "쏙쉐이크", "아이디어": "-"},
     {"구분": "자사", "세부유형": "프로젝트 협업", "이름": "아이뽀 i4", "URL": "https://youtube.com/channel/UC6jtibPJUrtufKBZCm6gbIg", "추천제품": "멜브 솔브", "아이디어": "-"},
-    {"구분": "자사", "세부유형": "프로젝트 협업", "이름": "대생이", "URL": "https://youtube.com/channel/UChE5nZAIhWS5vYTRjsUgRpQ", "추천제품": "어퍼 볼캡 체크셔츠", "아이디어": "-"}
-]
-
-# [2] 외부 데이터 (43명)
-yt_data_ext = [
+    {"구분": "자사", "세부유형": "프로젝트 협업", "이름": "대생이", "URL": "https://youtube.com/channel/UChE5nZAIhWS5vYTRjsUgRpQ", "추천제품": "어퍼 체크셔츠", "아이디어": "-"},
+    
+    # --- 외부 (43명) ---
     {"구분": "외부", "세부유형": "외부", "이름": "조재원", "URL": "https://youtube.com/channel/UC2o_y872S6YvaO1K8EYnoxg", "추천제품": "쏙쉐이크", "아이디어": "동금여사님 먹방"},
     {"구분": "외부", "세부유형": "외부", "이름": "송대익", "URL": "https://youtube.com/channel/UCreFV1bKkKE6ufPtd5XeEJw", "추천제품": "쏙쉐이크", "아이디어": "자취 생활 노출"},
-    {"구분": "외부", "세부유형": "외부", "이름": "엄지렐라", "URL": "https://youtube.com/channel/UCLXafJ8yYXeUN_eHai-6Pgw", "추천제품": "어퍼 체크셔츠", "아이디어": ""},
-    {"구분": "외부", "세부유형": "외부", "이름": "숏박스", "URL": "https://youtube.com/channel/UC1B6SalAoiJD7eHfMUA9QrA", "추천제품": "어퍼 볼캡", "아이디어": ""},
+    {"구분": "외부", "세부유형": "외부", "이름": "엄지렐라", "URL": "https://youtube.com/channel/UCLXafJ8yYXeUN_eHai-6Pgw", "추천제품": "어퍼", "아이디어": ""},
+    {"구분": "외부", "세부유형": "외부", "이름": "숏박스", "URL": "https://youtube.com/channel/UC1B6SalAoiJD7eHfMUA9QrA", "추천제품": "어퍼", "아이디어": ""},
     {"구분": "외부", "세부유형": "외부", "이름": "김선태", "URL": "https://youtube.com/channel/UCt-BApVtJGrvF5pCgbiNVeg", "추천제품": "쏙쉐이크", "아이디어": ""},
     {"구분": "외부", "세부유형": "외부", "이름": "하루의하루", "URL": "https://youtube.com/channel/UCpQxvEhfR60LR4s7PV48qIw", "추천제품": "솔브", "아이디어": ""},
     {"구분": "외부", "세부유형": "외부", "이름": "찰스엔터", "URL": "https://youtube.com/channel/UCCZ-gBdN59pF39tbm16xvdQ", "추천제품": "쏙쉐이크", "아이디어": ""},
@@ -91,96 +87,85 @@ yt_data_ext = [
     {"구분": "외부", "세부유형": "외부", "이름": "김민지", "URL": "https://youtube.com/channel/UCB9jzo97ZxA5Kl6JDfX0UPw", "추천제품": "멜브", "아이디어": ""},
     {"구분": "외부", "세부유형": "기동", "이름": "김크리스탈", "URL": "https://youtube.com/channel/UCcNYkzLMSkSiYaiAYjUNzRg", "추천제품": "멜브", "아이디어": ""},
     {"구분": "외부", "세부유형": "기동", "이름": "다인이공", "URL": "https://youtube.com/channel/UCs7Bw5CQK82AHhyMQ59NZWA", "추천제품": "쏙쉐이크", "아이디어": ""},
-    {"구분": "외부", "세부유형": "기동", "이름": "김밍", "URL": "https://youtube.com/channel/UCTjwlF8Y8hxR85JPUoZv-6A", "추천제품": "멜브", "아이디어": ""}
-]
+    {"구분": "외부", "세부유형": "기동", "이름": "김밍", "URL": "https://youtube.com/channel/UCTjwlF8Y8hxR85JPUoZv-6A", "추천제품": "멜브", "아이디어": ""},
 
-# [3] 벤더사 데이터 (10명)
-vendor_data = [
-    {"분류": "1억 이상", "이름": "한스스타일", "URL": "https://www.instagram.com/hansstyle_hanna/", "추천제품": "솔브"},
-    {"분류": "1억 이상", "이름": "11AM", "URL": "https://www.instagram.com/he11o_yeojin/", "추천제품": "솔브"},
-    {"분류": "1억~1억 이상", "이름": "강지혜", "URL": "https://www.instagram.com/hairstyle_jihye/", "추천제품": "솔브"},
-    {"분류": "1억~1억 이상", "이름": "츄니토리", "URL": "https://www.instagram.com/chunytory/", "추천제품": "솔브"},
-    {"분류": "1억~1억 이상", "이름": "헤이가가", "URL": "https://www.instagram.com/hey_gaga_/", "추천제품": "솔브"},
-    {"분류": "4,000~7,000만 평균", "이름": "뚜뜨", "URL": "https://www.instagram.com/mintoute_/", "추천제품": "쏙쉐이크"},
-    {"분류": "4,000~7,000만 평균", "이름": "아뜨와지효", "URL": "https://www.instagram.com/atoi_jihyo/", "추천제품": "솔브"},
-    {"분류": "3,000~5,000만 평균", "이름": "엔젤루밍", "URL": "https://www.instagram.com/ryu_angel/", "추천제품": "솔브 모델링팩"},
-    {"분류": "3,000~5,000만 평균", "이름": "캘러리아", "URL": "https://www.instagram.com/hyo_kate_olivia/", "추천제품": "미스트"},
-    {"분류": "3,000~5,000만 평균", "이름": "리미샵", "URL": "https://www.instagram.com/limi_unni/", "추천제품": "솔브"}
-]
+    # --- 벤더사 (10명) ---
+    {"구분": "벤더사", "세부유형": "1억 이상", "이름": "한스스타일", "URL": "https://www.instagram.com/hansstyle_hanna/", "추천제품": "솔브", "아이디어": "인스타 공구"},
+    {"구분": "벤더사", "세부유형": "1억 이상", "이름": "11AM", "URL": "https://www.instagram.com/he11o_yeojin/", "추천제품": "솔브", "아이디어": ""},
+    {"구분": "벤더사", "세부유형": "규모급", "이름": "강지혜", "URL": "https://www.instagram.com/hairstyle_jihye/", "추천제품": "솔브", "아이디어": ""},
+    {"구분": "벤더사", "세부유형": "규모급", "이름": "츄니토리", "URL": "https://www.instagram.com/chunytory/", "추천제품": "솔브", "아이디어": ""},
+    {"구분": "벤더사", "세부유형": "규모급", "이름": "헤이가가", "URL": "https://www.instagram.com/hey_gaga_/", "추천제품": "솔브", "아이디어": ""},
+    {"구분": "벤더사", "세부유형": "중대형", "이름": "뚜뜨", "URL": "https://www.instagram.com/mintoute_/", "추천제품": "쏙쉐이크", "아이디어": ""},
+    {"구분": "벤더사", "세부유형": "중대형", "이름": "아뜨와지효", "URL": "https://www.instagram.com/atoi_jihyo/", "추천제품": "솔브", "아이디어": ""},
+    {"구분": "벤더사", "세부유형": "평균급", "이름": "엔젤루밍", "URL": "https://www.instagram.com/ryu_angel/", "추천제품": "모델링팩", "아이디어": ""},
+    {"구분": "벤더사", "세부유형": "평균급", "이름": "캘러리아", "URL": "https://www.instagram.com/hyo_kate_olivia/", "추천제품": "미스트", "아이디어": ""},
+    {"구분": "벤더사", "세부유형": "평균급", "이름": "리미샵", "URL": "https://www.instagram.com/limi_unni/", "추천제품": "솔브", "아이디어": ""},
 
-# [4] 소속사 데이터 (13명)
-agency_data = [
-    {"소속": "샌드박스", "플랫폼": "릴스", "이름": "linakeemz", "URL": "https://www.instagram.com/linakeemz/", "구독자": "119,000", "단가": "2,600,000", "비고": "RS 30%"},
-    {"소속": "샌드박스", "플랫폼": "릴스", "이름": "1__xixx", "URL": "https://www.instagram.com/1__xixx/", "구독자": "43,000", "단가": "2,600,000", "비고": "RS 30%"},
-    {"소속": "샌드박스", "플랫폼": "릴스", "이름": "lee_dan2", "URL": "https://www.instagram.com/lee_dan2/", "구독자": "157,000", "단가": "2,600,000", "비고": "RS 30%"},
-    {"소속": "샌드박스", "플랫폼": "릴스", "이름": "from.suason", "URL": "https://www.instagram.com/from.suason/", "구독자": "152,000", "단가": "2,600,000", "비고": "RS 30%"},
-    {"소속": "샌드박스", "플랫폼": "릴스", "이름": "ziyoo_days", "URL": "https://www.instagram.com/ziyoo_days/", "구독자": "50,000", "단가": "2,080,000", "비고": "RS 30%"},
-    {"소속": "샌드박스", "플랫폼": "릴스", "이름": "alisswlle", "URL": "https://www.instagram.com/alisswlle/", "구독자": "74,000", "단가": "1,950,000", "비고": "RS 30%"},
-    {"소속": "샌드박스", "플랫폼": "릴스", "이름": "s0la._.c", "URL": "https://www.instagram.com/s0la._.c/", "구독자": "54,000", "단가": "1,300,000", "비고": "RS 30%"},
-    {"소속": "샌드박스", "플랫폼": "쇼츠", "이름": "무찌", "URL": "https://www.youtube.com/@muzzi_youtube", "구독자": "179,000", "단가": "2,600,000", "비고": "RS 30%"},
-    {"소속": "샌드박스", "플랫폼": "쇼츠", "이름": "히루히루 HeeRu", "URL": "https://www.youtube.com/@heeruheeru", "구독자": "127,000", "단가": "2,600,000", "비고": "RS 30%"},
-    {"소속": "샌드박스", "플랫폼": "쇼츠", "이름": "채울렛chaeullet", "URL": "https://www.youtube.com/@chaeullet", "구독자": "87,800", "단가": "1,950,000", "비고": "RS 30%"},
-    {"소속": "샌드박스", "플랫폼": "쇼츠", "이름": "후Hoo", "URL": "https://www.youtube.com/@Hoo_short", "구독자": "53,200", "단가": "1,300,000", "비고": "RS 30%"},
-    {"소속": "샌드박스", "플랫폼": "쇼츠", "이름": "송타민", "URL": "https://www.youtube.com/@songtamin", "구독자": "20,800", "단가": "910,000", "비고": "RS 30%"},
-    {"소속": "트레져헌터", "플랫폼": "유튜브", "이름": "버터와여름이네", "URL": "https://www.youtube.com/@butterfamilyS", "구독자": "22.96만", "단가": "RS 30%", "비고": "솔브 전달완료"}
+    # --- 소속사 (13명) ---
+    {"구분": "샌드박스", "세부유형": "릴스", "이름": "linakeemz", "URL": "https://www.instagram.com/linakeemz/", "추천제품": "솔브", "아이디어": "구독자: 11.9만 / 단가: 260만 / RS 30%"},
+    {"구분": "샌드박스", "세부유형": "릴스", "이름": "1__xixx", "URL": "https://www.instagram.com/1__xixx/", "추천제품": "솔브", "아이디어": "구독자: 4.3만 / 단가: 260만 / RS 30%"},
+    {"구분": "샌드박스", "세부유형": "릴스", "이름": "lee_dan2", "URL": "https://www.instagram.com/lee_dan2/", "추천제품": "솔브", "아이디어": "구독자: 15.7만 / 단가: 260만 / RS 30%"},
+    {"구분": "샌드박스", "세부유형": "릴스", "이름": "from.suason", "URL": "https://www.instagram.com/from.suason/", "추천제품": "솔브", "아이디어": "구독자: 15.2만 / 단가: 260만 / RS 30%"},
+    {"구분": "샌드박스", "세부유형": "릴스", "이름": "ziyoo_days", "URL": "https://www.instagram.com/ziyoo_days/", "추천제품": "솔브", "아이디어": "구독자: 5만 / 단가: 208만 / RS 30%"},
+    {"구분": "샌드박스", "세부유형": "릴스", "이름": "alisswlle", "URL": "https://www.instagram.com/alisswlle/", "추천제품": "솔브", "아이디어": "구독자: 7.4만 / 단가: 195만 / RS 30%"},
+    {"구분": "샌드박스", "세부유형": "릴스", "이름": "s0la._.c", "URL": "https://www.instagram.com/s0la._.c/", "추천제품": "솔브", "아이디어": "구독자: 5.4만 / 단가: 130만 / RS 30%"},
+    {"구분": "샌드박스", "세부유형": "쇼츠", "이름": "무찌", "URL": "https://www.youtube.com/@muzzi_youtube", "추천제품": "솔브", "아이디어": "구독자: 17.9만 / 단가: 260만 / RS 30%"},
+    {"구분": "샌드박스", "세부유형": "쇼츠", "이름": "히루히루", "URL": "https://www.youtube.com/@heeruheeru", "추천제품": "솔브", "아이디어": "구독자: 12.7만 / 단가: 260만 / RS 30%"},
+    {"구분": "샌드박스", "세부유형": "쇼츠", "이름": "채울렛", "URL": "https://www.youtube.com/@chaeullet", "추천제품": "솔브", "아이디어": "구독자: 8.7만 / 단가: 195만 / RS 30%"},
+    {"구분": "샌드박스", "세부유형": "쇼츠", "이름": "후Hoo", "URL": "https://www.youtube.com/@Hoo_short", "추천제품": "솔브", "아이디어": "구독자: 5.3만 / 단가: 130만 / RS 30%"},
+    {"구분": "샌드박스", "세부유형": "쇼츠", "이름": "송타민", "URL": "https://www.youtube.com/@songtamin", "추천제품": "솔브", "아이디어": "구독자: 2만 / 단가: 91만 / RS 30%"},
+    {"구분": "트레져헌터", "세부유형": "유튜브", "이름": "버터와여름이네", "URL": "https://www.youtube.com/@butterfamilyS", "추천제품": "솔브", "아이디어": "구독자: 22.96만 / RS 30%"},
 ]
 
 # ==========================================
-# 3. 통합 규격화 함수
+# 3. 데이터 로드 및 시트 동기화 함수
 # ==========================================
-def get_unified_df():
-    # 1. 자사/외부
-    df_our = pd.DataFrame(yt_data_our).copy()
-    df_ext = pd.DataFrame(yt_data_ext).copy()
-    df_yt = pd.concat([df_our, df_ext], ignore_index=True)
-    df_yt['상세 정보'] = df_yt['아이디어'].fillna('-')
+def load_and_sync_data():
+    master_df = pd.DataFrame(raw_data)
     
-    # 2. 벤더사
-    df_vn = pd.DataFrame(vendor_data).copy()
-    df_vn['구분'] = '벤더사'
-    df_vn = df_vn.rename(columns={'분류': '세부유형'})
-    df_vn['추천제품'] = df_vn['추천제품'].fillna('-')
-    df_vn['상세 정보'] = "인스타그램 공동구매 추진 타겟"
+    # 구글 시트에서 기존 데이터 읽어오기
+    if conn:
+        try:
+            sheet_df = conn.read(worksheet="Sheet1")
+            if not sheet_df.empty:
+                # '이름'과 '구분'을 기준으로 기존 '컨펌상태' 값을 매칭해서 가져옴
+                status_map = dict(zip(sheet_df['이름'], sheet_df['컨펌상태']))
+                master_df['컨펌상태'] = master_df['이름'].map(status_map).fillna('대기')
+            else:
+                master_df['컨펌상태'] = '대기'
+        except:
+            master_df['컨펌상태'] = '대기'
+    else:
+        master_df['컨펌상태'] = '대기'
     
-    # 3. 소속사
-    df_ag = pd.DataFrame(agency_data).copy()
-    df_ag = df_ag.rename(columns={'소속': '구분', '플랫폼': '세부유형'})
-    df_ag['추천제품'] = '솔브/멜브'
-    df_ag['상세 정보'] = df_ag.apply(lambda x: f"구독자: {x.get('구독자','-')} / 단가: {x.get('단가','-')} ({x.get('비고','-')})", axis=1)
+    # 번호 부여
+    if '번호' not in master_df.columns:
+        master_df.insert(0, '번호', range(1, len(master_df) + 1))
+    
+    return master_df
 
-    cols = ['구분', '세부유형', '이름', 'URL', '추천제품', '상세 정보']
-    df_combined = pd.concat([df_yt[cols], df_vn[cols], df_ag[cols]], ignore_index=True)
-    
-    # ⭐ [번호] 열 맨 앞에 삽입
-    if '번호' not in df_combined.columns:
-        df_combined.insert(0, '번호', range(1, len(df_combined) + 1))
-    
-    if 'confirmation_db' not in st.session_state:
-        df_combined['컨펌상태'] = '대기'
-        st.session_state.confirmation_db = df_combined
-    return st.session_state.confirmation_db
+# 세션 상태 초기화
+if 'df_master' not in st.session_state:
+    st.session_state.df_master = load_and_sync_data()
 
 # ==========================================
-# 4. 이미지 및 갤러리 로직
+# 4. 이미지 캐싱 로직
 # ==========================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(BASE_DIR, "profile_cache.json")
 
 def load_cache():
-    if not os.path.exists(CACHE_FILE):
-        with open(CACHE_FILE, "w", encoding='utf-8') as f: json.dump({}, f)
-        return {}
-    with open(CACHE_FILE, "r", encoding='utf-8') as f: return json.load(f)
+    if not os.path.exists(CACHE_FILE): return {}
+    with open(CACHE_FILE, "r") as f: return json.load(f)
 
 def save_cache(cache):
-    with open(CACHE_FILE, "w", encoding='utf-8') as f: json.dump(cache, f, ensure_ascii=False, indent=4)
+    with open(CACHE_FILE, "w") as f: json.dump(cache, f)
 
 if 'img_cache' not in st.session_state: st.session_state.img_cache = load_cache()
 
 def get_yt_profile_pic(url, api_key):
     if url in st.session_state.img_cache: return st.session_state.img_cache[url]
-    if not api_key or "instagram" in url or "youtube" not in url: 
-        return "https://via.placeholder.com/300x300.png?text=Glowuprizz"
+    if not api_key or "youtube" not in url: return "https://via.placeholder.com/300x300.png?text=Glowuprizz"
     try:
         youtube = build('youtube', 'v3', developerKey=api_key)
         if '/channel/' in url: c_id = url.split('/channel/')[1].split('/')[0].split('?')[0]
@@ -189,7 +174,6 @@ def get_yt_profile_pic(url, api_key):
             res = youtube.search().list(part="snippet", q=handle, type="channel", maxResults=1).execute()
             c_id = res['items'][0]['snippet']['channelId']
         else: return "https://via.placeholder.com/300x300.png?text=Glowuprizz"
-        
         c_res = youtube.channels().list(part="snippet", id=c_id).execute()
         img_url = c_res['items'][0]['snippet']['thumbnails']['medium']['url']
         st.session_state.img_cache[url] = img_url
@@ -197,71 +181,111 @@ def get_yt_profile_pic(url, api_key):
         return img_url
     except: return "https://via.placeholder.com/300x300.png?text=Not+Found"
 
-def draw_gallery(df_subset):
+# ==========================================
+# 5. 갤러리 뷰 함수 (개별 컨펌 가능)
+# ==========================================
+def draw_gallery_with_confirm(df_subset, num_cols=6):
     df_clean = df_subset.reset_index(drop=True)
-    cols = st.columns(6) 
+    cols = st.columns(num_cols)
+    
+    options = ["대기", "승인 ✅", "반려 ❌", "보류 ⏳"]
+    
     for i, row in df_clean.iterrows():
-        with cols[i % 6]: 
+        # 마스터 데이터프레임에서의 실제 인덱스 찾기
+        idx = st.session_state.df_master[st.session_state.df_master['이름'] == row['이름']].index[0]
+        
+        with cols[i % num_cols]:
             with st.container(border=True):
+                # 프로필 상단에 컨펌 선택창 배치
+                current_status = st.session_state.df_master.at[idx, '컨펌상태']
+                if current_status not in options: current_status = "대기"
+                
+                new_status = st.selectbox(
+                    f"상태 ({row['이름']})", 
+                    options, 
+                    index=options.index(current_status),
+                    key=f"status_{row['이름']}_{idx}",
+                    label_visibility="collapsed"
+                )
+                
+                # 상태 변경 시 세션 상태 즉시 업데이트
+                if new_status != current_status:
+                    st.session_state.df_master.at[idx, '컨펌상태'] = new_status
+                
                 pic_url = get_yt_profile_pic(row.get('URL', '-'), yt_key)
                 st.markdown(f'<div style="width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 6px; margin-bottom: 8px;"><img src="{pic_url}" style="width: 100%; height: 100%; object-fit: cover;"></div>', unsafe_allow_html=True)
                 st.markdown(f"**{row['이름']}**")
-                st.caption(f"{row.get('세부유형', row.get('분류', row.get('플랫폼', '')))}")
+                st.caption(f"{row.get('세부유형','')}")
                 st.markdown(f"<small>🎯 {row.get('추천제품', '-')}</small>", unsafe_allow_html=True)
                 with st.expander("📝"):
-                    st.write(row.get('아이디어', row.get('상세 정보', '내용 없음')))
+                    st.write(row.get('아이디어', '내용 없음'))
                 if row.get('URL', '-') != '-': st.link_button("🔗", row['URL'], use_container_width=True)
 
 # ==========================================
-# 5. 화면 구성
+# 6. 화면 구성 및 일괄 처리 버튼
 # ==========================================
 tabs = st.tabs(["📊 통합 컨펌", "🏢 자사", "🌍 외부", "🤝 벤더사", "🏢 소속사"])
 
 with tabs[0]:
     st.header("📋 전체 리스트 통합 컨펌")
-    unified_df = get_unified_df()
+    # 전체 탭 에디터
     edited_df = st.data_editor(
-        unified_df,
+        st.session_state.df_master,
         column_config={
             "번호": st.column_config.NumberColumn("No.", width="small", disabled=True),
             "URL": st.column_config.LinkColumn("링크"),
-            "컨펌상태": st.column_config.SelectboxColumn("결정", options=["대기", "승인 ✅", "반려 ❌"])
+            "컨펌상태": st.column_config.SelectboxColumn("결정", options=["대기", "승인 ✅", "반려 ❌", "보류 ⏳"])
         },
-        use_container_width=True, hide_index=True
+        use_container_width=True, hide_index=True, key="main_editor"
     )
-    col1, col2 = st.columns([1, 4])
-    with col1:
-        if st.button("💾 구글 시트 저장"):
+    st.session_state.df_master = edited_df
+    
+    col_save, col_link = st.columns([1, 4])
+    with col_save:
+        if st.button("💾 구글 시트 저장", type="primary"):
             if conn:
                 try:
-                    conn.update(worksheet="Sheet1", data=edited_df)
-                    st.success("저장 완료!")
-                except Exception as e: st.error(f"권한 확인 요망: {e}")
-    with col2:
-        # ⭐ 구글 시트 바로가기 버튼 추가
+                    conn.update(worksheet="Sheet1", data=st.session_state.df_master)
+                    st.success("✅ 구글 시트 업데이트 완료!")
+                except Exception as e:
+                    st.error(f"❌ 저장 실패: {e}")
+    with col_link:
         st.link_button("📂 구글 시트 원본 바로가기", SHEET_URL)
 
+def bulk_action_ui(target_df, title):
+    st.header(title)
+    c1, c2, c3, c4 = st.columns([2,1,1,1])
+    with c1: st.subheader(f"👥 명단")
+    # 일괄 처리 버튼
+    if c2.button(f"모두 승인", key=f"all_app_{title}"):
+        st.session_state.df_master.loc[target_df.index, '컨펌상태'] = "승인 ✅"
+        st.rerun()
+    if c3.button(f"모두 반려", key=f"all_rej_{title}"):
+        st.session_state.df_master.loc[target_df.index, '컨펌상태'] = "반려 ❌"
+        st.rerun()
+    if c4.button(f"모두 보류", key=f"all_wait_{title}"):
+        st.session_state.df_master.loc[target_df.index, '컨펌상태'] = "보류 ⏳"
+        st.rerun()
+
 with tabs[1]:
-    st.header("🏢 자사 크리에이터 (갤러리)")
-    df_our = pd.DataFrame(yt_data_our)
-    for sub in ["전속", "파트너십", "프로젝트 협업"]:
-        st.subheader(f"💎 {sub}")
-        draw_gallery(df_our[df_our['세부유형']==sub])
-        st.divider()
+    df_our = st.session_state.df_master[st.session_state.df_master['구분']=='자사']
+    bulk_action_ui(df_our, "자사 크리에이터")
+    num_cols_our = st.slider("가로 배치 조절", 2, 8, 6, key="slider_our")
+    draw_gallery_with_confirm(df_our, num_cols=num_cols_our)
 
 with tabs[2]:
-    st.header("🌍 외부 크리에이터 (갤러리)")
-    draw_gallery(pd.DataFrame(yt_data_ext))
+    df_ext = st.session_state.df_master[st.session_state.df_master['구분']=='외부']
+    bulk_action_ui(df_ext, "외부 크리에이터")
+    num_cols_ext = st.slider("가로 배치 조절", 2, 8, 6, key="slider_ext")
+    draw_gallery_with_confirm(df_ext, num_cols=num_cols_ext)
 
 with tabs[3]:
     st.header("🤝 벤더사 리스트")
-    st.markdown("##### 인스타그램 기반 벤더사 목록입니다.")
-    st.dataframe(pd.DataFrame(vendor_data), use_container_width=True, hide_index=True, column_config={"URL": st.column_config.LinkColumn("Instagram 링크")})
+    df_vn = st.session_state.df_master[st.session_state.df_master['구분']=='벤더사']
+    st.dataframe(df_vn, use_container_width=True, hide_index=True)
 
 with tabs[4]:
     st.header("🏢 소속사 협업 리스트")
-    # ⭐ 소속사 담당자 연락처 복구
     st.info("**📞 담당자 연락처**\n\n* **샌드박스:** AD2 l BD l 허현지님 (hjhuh@sandbox.co.kr)\n* **트레져헌터:** 숏폼사업팀 박예은 매니저님 (yeeun_p@treasurehunter.co.kr)")
-    # 표 형식으로 회귀
-    df_agency_table = pd.DataFrame(agency_data)
-    st.dataframe(df_agency_table, use_container_width=True, hide_index=True, column_config={"URL": st.column_config.LinkColumn("채널 링크")})
+    df_ag = st.session_state.df_master[st.session_state.df_master['구분'].isin(['샌드박스', '트레져헌터'])]
+    st.dataframe(df_ag, use_container_width=True, hide_index=True)
