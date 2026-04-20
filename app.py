@@ -266,8 +266,7 @@ with tabs[3]:
 
 with tabs[4]:
     st.header("🏢 소속사 협업 리스트")
-    st.info("**📞 담당자:** 샌드박스 허현지님 / 트레져헌터 박예은 매니저님")
-    # 소속사 데이터 갤러리용으로 가공
+    st.info("**📞 담당자:** 샌드박스 허현지님 hjhuh@sandbox.co.kr / 트레져헌터 박예은님 yeeun_p@treasurehunter.co.kr")
     df_agency_gal = pd.DataFrame(agency_data).rename(columns={'소속':'구분', '플랫폼':'세부유형'})
     df_agency_gal['아이디어'] = df_agency_gal.apply(lambda x: f"구독자: {x['구독자']} / 단가: {x['단가']} / {x['비고']}", axis=1)
     draw_gallery(df_agency_gal)
