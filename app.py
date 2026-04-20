@@ -2,12 +2,14 @@ import streamlit as st
 import pandas as pd
 from googleapiclient.discovery import build
 from streamlit_gsheets import GSheetsConnection
+import json
+import os
 
 # ==========================================
 # 1. 페이지 설정
 # ==========================================
 st.set_page_config(page_title="Glowuprizz PB Dashboard", page_icon="🚀", layout="wide")
-st.title("🚀 인플루언서 컨펌 관리 시스템")
+st.title("🚀 인플루언서 컨펌")
 
 SHEET_URL = "https://docs.google.com/spreadsheets/d/1rstN-Wpgen0gua78qI4lkt0OZhISw6pwLR8yJgR7G1s/edit?gid=0#gid=0"
 yt_key = st.secrets.get("YOUTUBE_KEY", "")
@@ -20,7 +22,6 @@ except:
 # ==========================================
 # 2. 실시간 유튜브 API (롱폼/쇼츠 구분 분석)
 # ==========================================
-# Streamlit의 내장 캐시 기능으로 API 할당량을 보호하고 속도를 높입니다.
 @st.cache_data(ttl=3600)
 def fetch_yt_data(url, api_key, is_shorts=False):
     res = {"pic": "https://via.placeholder.com/300x300.png?text=Glowuprizz", "views": 0, "er": 0.0}
@@ -251,7 +252,6 @@ def draw_gallery_custom(df_subset, num_cols=8):
                     new = st.selectbox("S", opts, index=opts.index(cur) if cur in opts else 0, key=f"sel_{master_idx}", label_visibility="collapsed")
                     if new != cur: st.session_state.df_master.at[master_idx, '컨펌상태'] = new
 
-                # 여기서 에러나지 않게 fetch_yt_data 를 바로 호출합니다!
                 is_shorts = row['구분'] in ['샌드박스', '트레져헌터']
                 stats = fetch_yt_data(row['URL'], yt_key, is_shorts=is_shorts)
                 pic_url = stats.get('pic', "https://via.placeholder.com/300x300.png?text=Glowuprizz")
@@ -259,10 +259,8 @@ def draw_gallery_custom(df_subset, num_cols=8):
                 st.markdown(f'<div style="width: 100%; aspect-ratio: 1/1; overflow: hidden; border-radius: 4px; margin-bottom: 5px;"><img src="{pic_url}" style="width: 100%; height: 100%; object-fit: cover;"></div>', unsafe_allow_html=True)
                 st.markdown(f"**{row['이름']}**")
                 
-                if row['구분'] == '자사': 
-                    st.markdown("<p style='font-size:11px; color:gray;'>📈 - / -</p>", unsafe_allow_html=True)
-                else:
-                    st.markdown(f"<p style='font-size:11px; color:blue;'>📈 {row['조회수']} / ER {row['ER_표시']}</p>", unsafe_allow_html=True)
+                # ⭐ 자사, 외부 모두 조회수/ER 동일하게 노출!
+                st.markdown(f"<p style='font-size:11px; color:blue;'>📈 {row.get('조회수', '-')} / ER {row.get('ER_표시', '-')}</p>", unsafe_allow_html=True)
                 
                 with st.expander("📝"): st.write(row['상세 정보'])
                 if row['URL'] != '-': st.link_button("🔗", row['URL'], use_container_width=True)
